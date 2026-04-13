@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LILA BLACK — Player Journey Visualizer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#0b0b12;--surface:#14141e;--surface2:#1a1a28;--border:#252536;
+--text:#e8e8f0;--dim:#7a7a90;--dim2:#50506a;
+--accent:#00ffa3;--accent2:#5566ff;
+--kill:#ff3366;--death:#ff9933;--loot:#00ccff;--storm:#aa44ff;
+--human:#00ffa3;--bot:rgba(255,153,51,0.5);
+--human-solid:#00ffa3;--bot-solid:#ff9933;
+}
+body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;overflow:hidden;height:100vh}
+
+/* ── Layout ── */
+.app{display:grid;grid-template-columns:272px 1fr;grid-template-rows:52px 1fr 58px;height:100vh}
+.header{grid-column:1/-1;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:14px}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.canvas-wrap{position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#07070c}
+.timeline{grid-column:1/-1;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px}
+
+/* ── Loading Screen ── */
+.loading-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:20px}
+.loading-screen.hidden{display:none}
+.loading-title{font-size:28px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.loading-sub{color:var(--dim);font-size:14px}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Header ── */
+.logo{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:15px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap}
+.logo-sub{font-weight:300;font-size:13px;color:var(--dim);margin-left:8px}
+.stats{margin-left:auto;display:flex;gap:20px;font-size:12px;color:var(--dim)}
+.stats b{color:var(--text);font-weight:500;margin-left:4px}
+
+/* ── Sidebar ── */
+.section-label{font-size:10px;text-transform:uppercase;letter-spacing:1.8px;color:var(--dim2);font-weight:600;margin-bottom:2px}
+.btn-row{display:flex;flex-wrap:wrap;gap:4px}
+.btn{padding:5px 11px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer;font-size:11px;font-family:'Outfit',sans-serif;transition:all .15s;font-weight:500}
+.btn:hover{border-color:var(--accent);color:var(--text)}
+.btn.on{background:var(--accent);color:#0b0b12;border-color:var(--accent)}
+.btn.on.kill{background:var(--kill)}.btn.on.death{background:var(--death);color:#0b0b12}
+.btn.on.loot{background:var(--loot);color:#0b0b12}.btn.on.storm{background:var(--storm)}
+select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-family:'Outfit',sans-serif;font-size:12px;width:100%;cursor:pointer;outline:none}
+select:focus{border-color:var(--accent)}
+.divider{height:1px;background:var(--border);margin:4px 0}
+.match-card{font-size:11px;color:var(--dim);line-height:1.7;padding:8px 10px;background:var(--bg);border-radius:8px;border:1px solid var(--border)}
+.match-card b{color:var(--text);font-weight:500}
+.legend{display:flex;flex-direction:column;gap:5px}
+.legend-row{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--dim)}
+.dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.dot.diamond{border-radius:0;transform:rotate(45deg);width:8px;height:8px}
+.dot.square{border-radius:1px;width:8px;height:8px}
+
+/* ── Canvas overlay ── */
+.heatmap-btns{position:absolute;top:10px;right:10px;display:flex;gap:5px;z-index:5}
+.hm-btn{padding:5px 12px;border-radius:16px;border:1px solid var(--border);background:rgba(20,20,30,.85);backdrop-filter:blur(6px);color:var(--dim);cursor:pointer;font-size:10px;font-family:'Outfit',sans-serif;font-weight:500;transition:.15s}
+.hm-btn:hover{border-color:var(--accent);color:var(--text)}
+.hm-btn.on{background:var(--accent);color:#0b0b12;border-color:var(--accent)}
+.coord-tip{position:absolute;bottom:8px;left:8px;padding:4px 10px;border-radius:4px;background:rgba(20,20,30,.9);font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim2)}
+.empty-msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:13px;pointer-events:none}
+
+/* ── Timeline ── */
+.play-btn{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--border);background:transparent;color:var(--accent);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:.15s;flex-shrink:0}
+.play-btn:hover{background:var(--accent);color:#0b0b12}
+.tl-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);min-width:36px;text-align:center}
+.tl-slider{flex:1;-webkit-appearance:none;appearance:none;height:3px;background:var(--border);border-radius:2px;outline:none;cursor:pointer}
+.tl-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--accent);border-radius:50%;cursor:grab}
+.spd-btn{padding:3px 9px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer;font-size:10px;font-family:'JetBrains Mono',monospace}
+.spd-btn.on{color:var(--accent);border-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div class="loading-screen" id="loading">
+  <div class="loading-title">LILA BLACK</div>
+  <div class="loading-sub">Player Journey Visualizer</div>
+  <div class="spinner"></div>
+  <div class="loading-sub" id="load-status">Loading data...</div>
+</div>
+
+<!-- App -->
+<div class="app" id="app" style="display:none">
+  <div class="header">
+    <div class="logo">LILA BLACK</div>
+    <div class="logo-sub">Player Journey Visualizer</div>
+    <div class="stats">
+      <span>Events<b id="s-events">—</b></span>
+      <span>Players<b id="s-players">—</b></span>
+      <span>Matches<b id="s-matches">—</b></span>
+    </div>
+  </div>
+
+  <div class="sidebar" id="sidebar">
+    <div class="section-label">Map</div>
+    <div class="btn-row" id="map-btns"></div>
+
+    <div class="section-label">Date</div>
+    <div class="btn-row" id="date-btns"></div>
+
+    <div class="section-label">Match</div>
+    <select id="match-sel"><option value="">All matches</option></select>
+
+    <div class="divider"></div>
+
+    <div class="section-label">Players</div>
+    <div class="btn-row">
+      <button class="btn on" data-tog="humans">👤 Humans</button>
+      <button class="btn on" data-tog="bots">🤖 Bots</button>
+    </div>
+
+    <div class="section-label">Events</div>
+    <div class="btn-row">
+      <button class="btn on" data-tog="paths">Paths</button>
+      <button class="btn on kill" data-tog="kills">Kills</button>
+      <button class="btn on death" data-tog="deaths">Deaths</button>
+      <button class="btn on loot" data-tog="loot">Loot</button>
+      <button class="btn on storm" data-tog="storm">Storm</button>
+    </div>
+
+    <div class="divider"></div>
+    <div id="match-card" class="match-card" style="display:none"></div>
+
+    <div class="section-label">Legend</div>
+    <div class="legend">
+      <div class="legend-row"><div class="dot" style="background:var(--human-solid)"></div>Human path</div>
+      <div class="legend-row"><div class="dot" style="background:var(--bot-solid)"></div>Bot path</div>
+      <div class="legend-row"><div class="dot" style="background:var(--kill)"></div>Kill / BotKill</div>
+      <div class="legend-row"><div class="dot" style="background:var(--death)"></div>Killed / BotKilled</div>
+      <div class="legend-row"><div class="dot diamond" style="background:var(--storm)"></div>Storm death</div>
+      <div class="legend-row"><div class="dot square" style="background:var(--loot)"></div>Loot pickup</div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap" id="canvas-wrap">
+    <canvas id="cv"></canvas>
+    <div class="heatmap-btns">
+      <button class="hm-btn" data-hm="kills">🔥 Kill zones</button>
+      <button class="hm-btn" data-hm="deaths">💀 Death zones</button>
+      <button class="hm-btn" data-hm="traffic">🔵 Traffic</button>
+    </div>
+    <div class="coord-tip" id="tip" style="display:none"></div>
+    <div class="empty-msg" id="empty-msg" style="display:none">No events match current filters</div>
+  </div>
+
+  <div class="timeline">
+    <button class="play-btn" id="play-btn">▶</button>
+    <span class="tl-label">0%</span>
+    <input type="range" class="tl-slider" id="tl-slider" min="0" max="100" value="100" step="0.5">
+    <span class="tl-label">100%</span>
+    <button class="spd-btn" data-spd="1">1×</button>
+    <button class="spd-btn on" data-spd="2">2×</button>
+    <button class="spd-btn" data-spd="4">4×</button>
+  </div>
+</div>
+
+<script>
+// ═══ STATE ═══
+const MAPS = ['AmbroseValley','GrandRift','Lockdown'];
+const MAP_LABELS = {AmbroseValley:'Ambrose Valley',GrandRift:'Grand Rift',Lockdown:'Lockdown'};
+const DATES = ['2026-02-10','2026-02-11','2026-02-12','2026-02-13','2026-02-14'];
+const DATE_LABELS = {'2026-02-10':'Feb 10','2026-02-11':'Feb 11','2026-02-12':'Feb 12','2026-02-13':'Feb 13','2026-02-14':'Feb 14'};
+
+let ALL_EVENTS = [], ALL_MATCHES = [], MAP_IMGS = {};
+const F = {
+  map:'AmbroseValley', dates:new Set(DATES), matchId:null,
+  humans:true, bots:true, paths:true, kills:true, deaths:true, loot:true, storm:true,
+  heatmap:null, time:100, playing:false, speed:2
+};
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const wrap = document.getElementById('canvas-wrap');
+
+// ═══ LOAD DATA ═══
+async function init(){
+  document.getElementById('load-status').textContent = 'Loading events...';
+  const [evts, matches] = await Promise.all([
+    fetch('data/events.json').then(r=>r.json()),
+    fetch('data/matches.json').then(r=>r.json())
+  ]);
+  ALL_EVENTS = evts; ALL_MATCHES = matches;
+
+  document.getElementById('load-status').textContent = 'Loading maps...';
+  for(const name of MAPS){
+    const img = new Image();
+    img.src = `maps/${name}_Minimap.png`;
+    await new Promise(r=>{img.onload=r;img.onerror=r});
+    MAP_IMGS[name] = img;
+  }
+
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('app').style.display = 'grid';
+  buildUI();
+  render();
+}
+
+// ═══ UI BUILDING ═══
+function buildUI(){
+  // Map buttons
+  const mb = document.getElementById('map-btns');
+  MAPS.forEach(m=>{
+    const b = document.createElement('button');
+    b.className = 'btn'+(m===F.map?' on':'');
+    b.textContent = MAP_LABELS[m];
+    b.onclick = ()=>{
+      F.map=m; F.matchId=null;
+      mb.querySelectorAll('.btn').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      updateMatchSel(); render();
+    };
+    mb.appendChild(b);
+  });
+
+  // Date buttons
+  const db = document.getElementById('date-btns');
+  DATES.forEach(d=>{
+    const b = document.createElement('button');
+    b.className = 'btn on';
+    b.textContent = DATE_LABELS[d];
+    b.onclick = ()=>{
+      if(F.dates.has(d)) F.dates.delete(d); else F.dates.add(d);
+      b.classList.toggle('on');
+      F.matchId=null; updateMatchSel(); render();
+    };
+    db.appendChild(b);
+  });
+
+  // Toggle buttons
+  document.querySelectorAll('[data-tog]').forEach(b=>{
+    b.onclick = ()=>{
+      const k = b.dataset.tog;
+      F[k] = !F[k];
+      b.classList.toggle('on');
+      render();
+    };
+  });
+
+  // Heatmap buttons
+  document.querySelectorAll('[data-hm]').forEach(b=>{
+    b.onclick = ()=>{
+      const h = b.dataset.hm;
+      if(F.heatmap===h){F.heatmap=null;b.classList.remove('on')}
+      else{document.querySelectorAll('[data-hm]').forEach(x=>x.classList.remove('on'));F.heatmap=h;b.classList.add('on')}
+      render();
+    };
+  });
+
+  // Match select
+  updateMatchSel();
+  document.getElementById('match-sel').onchange = e=>{F.matchId=e.target.value||null;render()};
+
+  // Timeline
+  document.getElementById('tl-slider').oninput = e=>{F.time=+e.target.value;render()};
+  document.getElementById('play-btn').onclick = togglePlay;
+
+  // Speed buttons
+  document.querySelectorAll('[data-spd]').forEach(b=>{
+    b.onclick = ()=>{
+      F.speed=+b.dataset.spd;
+      document.querySelectorAll('[data-spd]').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+    };
+  });
+
+  // Mouse tooltip
+  cv.onmousemove = e=>{
+    const r=cv.getBoundingClientRect();
+    const s=cv.width/r.width;
+    const tip=document.getElementById('tip');
+    tip.style.display='block';
+    tip.textContent=`${Math.round((e.clientX-r.left)*s)}, ${Math.round((e.clientY-r.top)*s)}`;
+  };
+  cv.onmouseleave = ()=>{document.getElementById('tip').style.display='none'};
+}
+
+function updateMatchSel(){
+  const sel = document.getElementById('match-sel');
+  const fm = ALL_MATCHES.filter(m=>m.map===F.map && F.dates.has(m.date)).sort((a,b)=>b.events-a.events);
+  sel.innerHTML = `<option value="">All matches (${fm.length})</option>`;
+  fm.forEach(m=>{
+    const o = document.createElement('option');
+    o.value = m.id;
+    o.textContent = `${m.id} — ${m.players}P / ${m.bots}B — ${m.events} evts`;
+    sel.appendChild(o);
+  });
+}
+
+// ═══ FILTERING ═══
+function getFiltered(){
+  return ALL_EVENTS.filter(e=>{
+    if(e.map!==F.map) return false;
+    if(!F.dates.has(e.d)) return false;
+    if(F.matchId && e.m!==F.matchId) return false;
+    if(!F.humans && !e.b) return false;
+    if(!F.bots && e.b) return false;
+    if(e.t > F.time) return false;
+    return true;
+  });
+}
+
+function isVisible(evt){
+  if(evt==='Position'||evt==='BotPosition') return F.paths;
+  if(evt==='Kill'||evt==='BotKill') return F.kills;
+  if(evt==='Killed'||evt==='BotKilled') return F.deaths;
+  if(evt==='KilledByStorm') return F.storm;
+  if(evt==='Loot') return F.loot;
+  return true;
+}
+
+// ═══ RENDER ═══
+function resize(){
+  const w=wrap.clientWidth, h=wrap.clientHeight, s=Math.min(w,h);
+  cv.style.width=s+'px'; cv.style.height=s+'px';
+  cv.width=1024; cv.height=1024;
+}
+
+function render(){
+  resize();
+  ctx.clearRect(0,0,1024,1024);
+
+  // Minimap background
+  const img = MAP_IMGS[F.map];
+  if(img && img.complete && img.naturalWidth) ctx.drawImage(img,0,0,1024,1024);
+  else{ctx.fillStyle='#111';ctx.fillRect(0,0,1024,1024)}
+
+  const evts = getFiltered();
+  updateStats(evts);
+
+  // Empty state
+  document.getElementById('empty-msg').style.display = evts.length===0?'flex':'none';
+  if(evts.length===0) return;
+
+  if(F.heatmap){drawHeatmap(evts);return}
+
+  // ── Draw paths ──
+  if(F.paths){
+    const paths = {};
+    evts.forEach(e=>{
+      if(e.e!=='Position'&&e.e!=='BotPosition') return;
+      const k = e.u;
+      if(!paths[k]) paths[k]={pts:[],bot:e.b};
+      paths[k].pts.push([e.px,e.py]);
+    });
+
+    // Draw bot paths first (underneath)
+    Object.values(paths).forEach(p=>{
+      if(!p.bot||p.pts.length<2) return;
+      ctx.beginPath();ctx.strokeStyle='rgba(255,153,51,0.25)';ctx.lineWidth=0.7;
+      ctx.moveTo(p.pts[0][0],p.pts[0][1]);
+      for(let i=1;i<p.pts.length;i++) ctx.lineTo(p.pts[i][0],p.pts[i][1]);
+      ctx.stroke();
+    });
+    // Human paths on top
+    Object.values(paths).forEach(p=>{
+      if(p.bot||p.pts.length<2) return;
+      ctx.beginPath();ctx.strokeStyle='rgba(0,255,163,0.5)';ctx.lineWidth=1.8;
+      ctx.moveTo(p.pts[0][0],p.pts[0][1]);
+      for(let i=1;i<p.pts.length;i++) ctx.lineTo(p.pts[i][0],p.pts[i][1]);
+      ctx.stroke();
+    });
+  }
+
+  // ── Draw event markers ──
+  ctx.shadowBlur=0;
+  evts.forEach(e=>{
+    if(e.e==='Position'||e.e==='BotPosition') return;
+    if(!isVisible(e.e)) return;
+    const x=e.px, y=e.py;
+
+    if(e.e==='Kill'||e.e==='BotKill'){
+      ctx.fillStyle='#ff3366';ctx.shadowColor='#ff3366';ctx.shadowBlur=8;
+      ctx.beginPath();ctx.arc(x,y,4.5,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;
+      // crosshair
+      ctx.strokeStyle='#ff336680';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(x-7,y);ctx.lineTo(x+7,y);ctx.moveTo(x,y-7);ctx.lineTo(x,y+7);ctx.stroke();
+    }
+    else if(e.e==='Killed'||e.e==='BotKilled'){
+      ctx.fillStyle='#ff9933';ctx.shadowColor='#ff9933';ctx.shadowBlur=6;
+      ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;
+      // X marker
+      ctx.strokeStyle='#ff993360';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(x-5,y-5);ctx.lineTo(x+5,y+5);ctx.moveTo(x+5,y-5);ctx.lineTo(x-5,y+5);ctx.stroke();
+    }
+    else if(e.e==='KilledByStorm'){
+      ctx.fillStyle='#aa44ff';ctx.shadowColor='#aa44ff';ctx.shadowBlur=8;
+      ctx.beginPath();ctx.moveTo(x,y-6);ctx.lineTo(x+6,y);ctx.lineTo(x,y+6);ctx.lineTo(x-6,y);ctx.closePath();ctx.fill();
+      ctx.shadowBlur=0;
+    }
+    else if(e.e==='Loot'){
+      ctx.fillStyle='#00ccff';ctx.shadowColor='#00ccff';ctx.shadowBlur=4;
+      ctx.fillRect(x-2.5,y-2.5,5,5);
+      ctx.shadowBlur=0;
+    }
+  });
+  ctx.shadowBlur=0;
+
+  // Match info card
+  const card = document.getElementById('match-card');
+  if(F.matchId){
+    const m = ALL_MATCHES.find(x=>x.id===F.matchId);
+    if(m){card.style.display='block';card.innerHTML=`<b>${m.id}</b><br>Map: ${MAP_LABELS[m.map]}<br>Date: ${DATE_LABELS[m.date]||m.date}<br>Players: <b>${m.players}</b> • Bots: <b>${m.bots}</b><br>Events: <b>${m.events}</b> • Kills: <b>${m.kills}</b>`}
+  } else card.style.display='none';
+}
+
+function updateStats(evts){
+  const humans = new Set(); let matchSet = new Set();
+  evts.forEach(e=>{if(!e.b) humans.add(e.u); matchSet.add(e.m)});
+  document.getElementById('s-events').textContent = evts.length.toLocaleString();
+  document.getElementById('s-players').textContent = humans.size;
+  document.getElementById('s-matches').textContent = matchSet.size;
+}
+
+// ═══ HEATMAP ═══
+function drawHeatmap(evts){
+  const G=16, C=Math.ceil(1024/G), grid=new Float32Array(C*C);
+  evts.forEach(e=>{
+    let ok=false;
+    if(F.heatmap==='kills'&&(e.e==='Kill'||e.e==='BotKill')) ok=true;
+    if(F.heatmap==='deaths'&&(e.e==='Killed'||e.e==='BotKilled'||e.e==='KilledByStorm')) ok=true;
+    if(F.heatmap==='traffic'&&(e.e==='Position'||e.e==='BotPosition')) ok=true;
+    if(!ok) return;
+    const gx=Math.min(C-1,Math.max(0,Math.floor(e.px/G)));
+    const gy=Math.min(C-1,Math.max(0,Math.floor(e.py/G)));
+    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+      const nx=gx+dx,ny=gy+dy;
+      if(nx>=0&&nx<C&&ny>=0&&ny<C) grid[ny*C+nx]+=(dx===0&&dy===0?1:.35);
+    }
+  });
+  let mx=0;for(let i=0;i<grid.length;i++)if(grid[i]>mx)mx=grid[i];
+  if(!mx) return;
+
+  const ramps={
+    kills:[[0,0,0],[200,0,50],[255,100,0],[255,220,50],[255,255,200]],
+    deaths:[[0,0,0],[100,0,140],[180,40,200],[255,100,255],[255,230,255]],
+    traffic:[[0,0,0],[0,40,100],[0,120,220],[0,210,255],[200,255,255]]
+  };
+  const colors=ramps[F.heatmap]||ramps.traffic;
+
+  for(let gy=0;gy<C;gy++)for(let gx=0;gx<C;gx++){
+    const v=grid[gy*C+gx]/mx;
+    if(v<0.015) continue;
+    const ci=Math.min(v*4,3.99),idx=Math.floor(ci),fr=ci-idx;
+    const c0=colors[idx],c1=colors[idx+1];
+    const r=c0[0]+(c1[0]-c0[0])*fr|0, g=c0[1]+(c1[1]-c0[1])*fr|0, b=c0[2]+(c1[2]-c0[2])*fr|0;
+    ctx.fillStyle=`rgba(${r},${g},${b},${Math.min(v*1.8,.88)})`;
+    ctx.fillRect(gx*G,gy*G,G,G);
+  }
+}
+
+// ═══ PLAYBACK ═══
+let lastT=0;
+function togglePlay(){
+  F.playing=!F.playing;
+  document.getElementById('play-btn').textContent=F.playing?'⏸':'▶';
+  if(F.playing){if(F.time>=100)F.time=0;lastT=performance.now();tick()}
+}
+function tick(){
+  if(!F.playing)return;
+  const now=performance.now(),dt=(now-lastT)/1000;lastT=now;
+  F.time=Math.min(100,F.time+dt*F.speed*5);
+  document.getElementById('tl-slider').value=F.time;
+  render();
+  if(F.time>=100){F.playing=false;document.getElementById('play-btn').textContent='▶';return}
+  requestAnimationFrame(tick);
+}
+
+// ═══ RESIZE ═══
+window.addEventListener('resize',()=>{if(!F.playing)render()});
+
+// ═══ START ═══
+init();
+</script>
+</body>
+</html>

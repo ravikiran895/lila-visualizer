@@ -1,0 +1,8 @@
+{
+  "name": "lila-player-journey-visualizer",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "npx serve public",
+    "dev": "npx serve public -l 5173"
+  }
+}
