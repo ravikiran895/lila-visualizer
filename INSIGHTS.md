@@ -1,74 +1,63 @@
 # Insights
 
-Three findings from exploring the data using the visualization tool.
+I spent a few hours playing with the tool after building it — switching maps, toggling heatmaps, filtering by date, watching matches play back. Here are three things that jumped out.
 
 ---
 
-## 1. Combat is concentrated in the center — 60% of kills happen in 20% of the map
+## 1. Most of Ambrose Valley is empty — players fight in the center and ignore the rest
 
-**What caught my eye:** On Ambrose Valley (the primary map, 71% of all matches), toggling the Kill Zones heatmap reveals an intense cluster in the center-left quadrant. The map edges are nearly empty.
+The first thing I did was turn on the Kill Zones heatmap for Ambrose Valley (it's the most played map — 566 out of 796 matches). The center-left area lights up immediately. Everything else is basically dark.
 
-**Evidence:** Grid analysis of 1,799 kills on Ambrose Valley:
+I ran the numbers to be sure. Out of 1,799 kills on Ambrose Valley, over 1,100 of them — about 61% — happen in just 5 grid cells clustered around the center. Meanwhile, 24 out of 64 grid cells (37% of the map) have literally zero player traffic. Nobody goes there. Ever.
 
-| Zone (pixel range) | Kills | % of total |
-|---|---|---|
-| (384–512, 512–640) | 247 | 13.7% |
-| (384–512, 384–512) | 237 | 13.2% |
-| (512–640, 512–640) | 226 | 12.6% |
-| (256–384, 512–640) | 206 | 11.4% |
-| (256–384, 384–512) | 187 | 10.4% |
-| **Top 5 zones combined** | **1,103** | **61.3%** |
+That's a lot of map real estate that got designed, textured, and shipped but no player has ever set foot in it. Either the center has all the good loot and extraction points (so players have no reason to go to the edges), or the map is just too big for the current player count.
 
-Meanwhile, 37% of the map grid (24 out of 64 cells) has zero player traffic — complete dead zones along the edges and corners.
+**What I'd do about it:** If the goal is to spread players out, try placing high-tier loot spawns or secondary objectives in those dead corners. If the center funnel is intentional, consider tightening the playable area so you're not maintaining unused space. Either way, the LD team should know that a third of their map is going unseen.
 
-**Actionable:** If the design intent is to spread combat across the map, add high-value loot or objectives to the underused quadrants. If center-heavy play is intentional (funneling toward extraction), then the design is working. Either way, 37% dead space represents wasted level design effort — consider shrinking the playable area or adding reasons to explore the edges.
-
-**Metrics affected:** Kill distribution heatmap, area utilization %, engagement per zone.
-
-**Why an LD should care:** Players never see a third of the map you built. That's either wasted effort or a missed opportunity for gameplay variety.
+**What to track:** Area utilization percentage, kill distribution spread, loot pickup locations by zone.
 
 ---
 
-## 2. Storm kills 3× more players on Grand Rift and Lockdown than Ambrose Valley
+## 2. Storm deaths are way higher on the smaller maps
 
-**What caught my eye:** Filtering by map and toggling death markers shows storm deaths (purple diamonds) appearing much more frequently on the smaller maps. The traffic heatmap confirms players are clustered far from edges when storm deaths occur.
+This one surprised me. I was clicking through maps and toggling death markers, and I noticed a lot more purple diamonds (storm kills) on Grand Rift and Lockdown compared to Ambrose Valley. So I counted them.
 
-**Evidence:**
-
-| Map | Storm Deaths | Total Deaths | Storm Death Rate |
+| Map | Storm Deaths | Total Deaths | Storm Kill Rate |
 |---|---|---|---|
 | Ambrose Valley | 17 | 505 | 3.4% |
 | Grand Rift | 5 | 52 | 9.6% |
 | Lockdown | 17 | 185 | 9.2% |
 
-Grand Rift and Lockdown have nearly 3× the storm death rate of Ambrose Valley.
+On Grand Rift and Lockdown, roughly 1 in 10 deaths is from the storm. On Ambrose Valley it's 1 in 30. That's a pretty big gap.
 
-**Actionable:** This suggests the storm either moves too fast relative to map size on Grand Rift and Lockdown, or extraction points are too far from common player positions when the storm hits. Consider: (a) slowing storm speed on these maps, (b) adding more extraction points, or (c) providing clearer storm-proximity warnings. Target metric: reduce storm death rate to under 5% on all maps.
+My guess is the storm moves at the same speed on all maps, but the smaller maps don't give players enough time to reach extraction. Or maybe the extraction points on those maps are just in awkward spots relative to where players tend to be when the storm hits.
 
-**Metrics affected:** Storm death rate, average survival time, extraction success rate, player satisfaction.
+**What I'd do about it:** Look at storm speed relative to map diameter. If the storm-to-extraction distance is consistently longer on Grand Rift and Lockdown, either slow the storm down on those maps, add more extraction points, or give players a clearer warning earlier. Dying to the storm feels bad — you didn't get outplayed, you just ran out of time. For new players who don't know the map layout yet, that's probably pretty frustrating.
 
-**Why an LD should care:** Storm deaths feel unfair — players aren't outplayed, they ran out of time. A 9.6% storm death rate means roughly 1 in 10 deaths is environmental, which drives frustration and churn, especially for new players who don't know the map well enough to extract quickly.
+**What to track:** Storm death rate per map (target: under 5%), average distance from player to nearest extraction when storm starts.
 
 ---
 
-## 3. Player activity drops 67% from Day 1 to Day 4 — possible retention signal
+## 3. 245 real players, but everyone's playing alone against bots — and they're leaving
 
-**What caught my eye:** Filtering by date reveals a sharp, consistent decline in activity. Feb 10 has dense path coverage; Feb 13 is noticeably sparse. The match count in the dropdown shrinks visibly each day.
+This was the most interesting finding. When I first saw the data, I assumed it was maybe one or two testers. But digging into the match data, there are actually 245 unique human player IDs across the dataset. These are real players.
 
-**Evidence:**
+The problem: 97.9% of matches have exactly 1 human player, with the rest being bots. Out of 796 total matches, only a single match had 2 humans in it. Players are never meeting each other. There are only 3 human-vs-human kills in the entire 5-day dataset — everything else is humans shooting bots.
 
-| Date | Events | vs Day 1 | Matches |
-|---|---|---|---|
-| Feb 10 | 33,687 | baseline | ~300+ |
-| Feb 11 | 21,235 | -37% | ~200+ |
-| Feb 12 | 18,429 | -45% | ~180+ |
-| Feb 13 | 11,106 | -67% | ~110+ |
-| Feb 14 | 4,647 | -86% | ~50 (partial) |
+On top of that, activity drops hard over the 5 days:
 
-Additionally, 99.9% of combat is human-vs-bot (2,415 BotKills vs only 3 human-vs-human Kills). Players almost never fight each other.
+| Date | Events | Drop from Day 1 |
+|---|---|---|
+| Feb 10 | 33,687 | — |
+| Feb 11 | 21,235 | -37% |
+| Feb 12 | 18,429 | -45% |
+| Feb 13 | 11,106 | -67% |
+| Feb 14 | 4,647 | -86% (partial day) |
 
-**Actionable:** Cross-reference with player login data to determine if this is the same players playing less or new players not returning. The near-zero PvP rate suggests either: (a) matchmaking doesn't put enough humans together, (b) the map is large enough that humans rarely encounter each other, or (c) players actively avoid PvP. If retention is a concern, consider: increasing human density per match, creating forced encounter zones, or adding PvP incentives.
+So you've got 245 players who are essentially playing a solo PvE experience — entering maps alone, fighting bots, extracting or dying, repeat. And each day, fewer of them come back.
 
-**Metrics affected:** DAU, D1/D3/D7 retention, sessions per player, PvP engagement rate.
+That could mean a few things. Maybe the concurrent player count is too low for matchmaking to put multiple humans in the same lobby. Maybe the map is big enough that even if there were two humans, they'd never find each other. Or maybe people try the game, realize they're just fighting bots, and lose interest.
 
-**Why an LD should care:** If players leave after 2–3 days, the map experience may be partially responsible. The combination of bot-dominated combat and declining activity suggests players may find the gameplay loop repetitive — fighting only bots on the same central map area.
+**What I'd do about it:** This is partly a matchmaking question and partly a level design question. From the LD side — if matches are going to be bot-heavy for a while (which is normal for early-stage games), the bot behavior and encounter design needs to be good enough to keep solo players engaged. The fact that combat is clustered in the same center zone every match (Insight #1) plus bot-only opponents probably makes the loop feel repetitive fast. Consider varying bot spawn patterns, adding map events, or creating zones that play differently each match.
+
+**What to track:** Daily active players, D1/D3/D7 retention, matches per player per day, average humans per match.
