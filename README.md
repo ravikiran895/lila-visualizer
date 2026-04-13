@@ -2,7 +2,7 @@
 
 A browser-based tool for Level Designers to visually explore player behavior across LILA BLACK maps using 5 days of production telemetry data.
 
-**🔗 Live URL:** `[YOUR_VERCEL_URL]`
+**🔗 Live URL:** `https://lila-visualizer-submission.vercel.app/`
 
 ## Features
 
