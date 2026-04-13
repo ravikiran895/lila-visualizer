@@ -55,7 +55,7 @@ def main():
                 if map_id not in MAP_CONFIG: continue
                 px, py = world_to_pixel(float(row['x']), float(row['z']), map_id)
                 ts = int(pd.Timestamp(row['ts']).value // 10**6)
-                match_events[mid].append({"u":uid,"px":px,"py":py,"t_raw":ts,"e":evt,"b":is_bot(uid),"d":date})
+                match_events[mid].append({"u":uid,"px":px,"py":py,"t_raw":ts,"e":evt,"b":is_bot(uid),"d":date,"map":map_id})
                 if mid not in match_meta: match_meta[mid] = {"map":map_id,"date":date}
     print(f"  {file_count} files, {len(match_events)} matches")
 
